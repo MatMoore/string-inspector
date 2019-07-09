@@ -38,4 +38,5 @@ fn main() {
         }
     }
     println!("");
+    println!("{}", buffer);
 }
