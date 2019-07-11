@@ -10,6 +10,9 @@ fn main() {
 
     let mut color_toggle = true;
 
+    println!("[utf-8]");
+
+    print!(" bytes: ");
     for character in buffer.chars() {
         if color_toggle {
             print!("{}", format_utf8_bytes(character).green());
@@ -23,6 +26,7 @@ fn main() {
 
     color_toggle = true;
 
+    print!(" chars: ");
     for character in buffer.chars() {
         if color_toggle {
             print!("{}", format_character(character).green());
@@ -34,6 +38,7 @@ fn main() {
     }
     println!("");
 
+    print!("output: ");
     println!("{}", highlight_non_ascii(buffer));
 }
 
