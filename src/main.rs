@@ -46,8 +46,58 @@ fn format_character(character: char) -> String {
         _ => {
             // TODO: this formatting will break if the codepoint in hex is longer than
             // the byte representation in hex
-            let codepoint = format!("{:x}", character as u32);
+            let codepoint = format!("{:02x} ", character as u32);
             format!("{:width$}", codepoint, width = char_size * 3)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ascii_printables() {
+        assert_eq!(format_utf8_bytes('!'), "21 ");
+        assert_eq!(format_character('!'), "!  ");
+
+        assert_eq!(format_utf8_bytes('a'), "61 ");
+        assert_eq!(format_character('a'), "a  ");
+
+        assert_eq!(format_utf8_bytes('A'), "41 ");
+        assert_eq!(format_character('A'), "A  ");
+
+        assert_eq!(format_utf8_bytes('1'), "31 ");
+        assert_eq!(format_character('1'), "1  ");
+    }
+
+    #[test]
+    fn ascii_escapables() {
+        assert_eq!(format_utf8_bytes('\n'), "0a ");
+        assert_eq!(format_character('\n'), "\\n ");
+
+        assert_eq!(format_utf8_bytes('\r'), "0d ");
+        assert_eq!(format_character('\r'), "\\r ");
+
+        assert_eq!(format_utf8_bytes('\t'), "09 ");
+        assert_eq!(format_character('\t'), "\\t ");
+    }
+
+    #[test]
+    fn ascii_non_printables() {
+        assert_eq!(format_utf8_bytes('\u{00}'), "00 ");
+        assert_eq!(format_character('\u{00}'), "00 ");
+
+        assert_eq!(format_utf8_bytes('\u{7f}'), "7f ");
+        assert_eq!(format_character('\u{7f}'), "7f ");
+    }
+
+    #[test]
+    fn extra_latin_letters() {
+        assert_eq!(format_utf8_bytes('é'), "c3 a9 ");
+        assert_eq!(format_character('é'),  "e9    ");
+
+        assert_eq!(format_utf8_bytes('ß'), "c3 9f ");
+        assert_eq!(format_character('ß'),  "df    ");
     }
 }
