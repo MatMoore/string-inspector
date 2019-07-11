@@ -1,22 +1,54 @@
 //use std::io;
 //use std::io::Read;
+use colored::*;
+
 fn main() {
     //let mut buffer = String::new();
     //io::stdin().read_to_string(&mut buffer).expect("Unable to read from stdin");
     //println!("{}", buffer);
     let buffer = "hello world, here is\t£1";
 
+    let mut color_toggle = true;
+
     for character in buffer.chars() {
-        print!("{}", format_utf8_bytes(character));
+        if color_toggle {
+            print!("{}", format_utf8_bytes(character).green());
+        } else {
+            print!("{}", format_utf8_bytes(character).blue());
+        }
+
+        color_toggle = !color_toggle;
     }
     println!("");
 
+    color_toggle = true;
+
     for character in buffer.chars() {
-        print!("{}", format_character(character));
+        if color_toggle {
+            print!("{}", format_character(character).green());
+        } else {
+            print!("{}", format_character(character).blue());
+        }
+
+        color_toggle = !color_toggle;
     }
     println!("");
 
-    println!("{}", buffer);
+    println!("{}", highlight_non_ascii(buffer));
+}
+
+fn highlight_non_ascii(input: &str) -> String {
+    let mut output = String::new();
+
+    for character in input.chars() {
+        if character.is_ascii() {
+            output.push(character);
+        } else {
+            output.push_str(&character.to_string().red().to_string());
+        }
+    }
+
+    output
 }
 
 fn format_utf8_bytes(character: char) -> String {
