@@ -1,12 +1,19 @@
-//use std::io;
-//use std::io::Read;
+use std::io;
+use std::io::Read;
+use std::env;
 use colored::*;
 
 fn main() {
-    //let mut buffer = String::new();
-    //io::stdin().read_to_string(&mut buffer).expect("Unable to read from stdin");
-    //println!("{}", buffer);
-    let buffer = "hello world, here is\t£1";
+    let mut buffer;
+    let args = env::args().collect::<Vec<String>>();
+
+    if args.len() < 2 {
+        eprintln!("No arguments passed to program: reading text from standard input...");
+        buffer = String::new();
+        io::stdin().read_to_string(&mut buffer).expect("Unable to read from stdin");
+    } else {
+        buffer = args[1..].join(" ");
+    }
 
     let mut color_toggle = true;
 
@@ -39,7 +46,7 @@ fn main() {
     println!("");
 
     print!("output: ");
-    println!("{}", highlight_non_ascii(buffer));
+    println!("{}", highlight_non_ascii(&buffer));
 }
 
 fn highlight_non_ascii(input: &str) -> String {
