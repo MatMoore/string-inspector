@@ -2,12 +2,14 @@ use colored::*;
 use std::io;
 use std::io::Read;
 
+const LABEL_SIZE: u16 = 7; // "bytes: / chars:" labels
+
 fn highlight_non_ascii(input: &str) -> String {
     let mut output = String::new();
 
     for character in input.chars() {
         if character.is_ascii() {
-            output.push(character);
+            output.push_str(&character.to_string().green().to_string());
         } else {
             output.push_str(&character.to_string().red().to_string());
         }
@@ -60,12 +62,47 @@ pub fn parse_input(args: &[String]) -> String {
     }
 }
 
-pub fn run(string: &str) {
-    let mut color_toggle = true;
+pub fn run_with_line_wrapping(string: &str, width: u16) {
+    let mut buffer = String::new();
+    let mut line_length = 0;
+    let mut first = true;
+    let width = width - LABEL_SIZE;
 
     println!("[utf-8]");
 
-    print!(" bytes: ");
+    for character in string.chars() {
+        let mut char_bytes = [0; 4];
+        let char_output_width = character.encode_utf8(&mut char_bytes).len() * 3;
+        if line_length + char_output_width > width as usize {
+            if first {
+                first = false;
+            } else {
+                println!("");
+            }
+            run(&buffer);
+            buffer.clear();
+            line_length = 0;
+        } else {
+            line_length += char_output_width;
+            buffer.push(character);
+        }
+    }
+
+    if buffer.len() > 0 {
+        if !first {
+            println!("");
+        }
+        run(&buffer);
+    }
+
+    println!("");
+    println!("{}", highlight_non_ascii(string));
+}
+
+pub fn run(string: &str) {
+    let mut color_toggle = true;
+
+    print!("bytes: ");
     for character in string.chars() {
         if color_toggle {
             print!("{}", format_utf8_bytes(character).green());
@@ -79,7 +116,7 @@ pub fn run(string: &str) {
 
     color_toggle = true;
 
-    print!(" chars: ");
+    print!("chars: ");
     for character in string.chars() {
         if color_toggle {
             print!("{}", format_character(character).green());
@@ -90,9 +127,6 @@ pub fn run(string: &str) {
         color_toggle = !color_toggle;
     }
     println!("");
-
-    print!("output: ");
-    println!("{}", highlight_non_ascii(string));
 }
 
 #[cfg(test)]
