@@ -7,3 +7,4 @@ edition = "2018"
 [dependencies]
 colored = "1.8"
 terminal_size = "0.1.8"
+encoding = "0.2"

@@ -3,6 +3,11 @@ use std::io;
 use std::io::Read;
 use std::os::unix::ffi::OsStringExt;
 
+extern crate encoding;
+
+use encoding::{Encoding, DecoderTrap};
+use encoding::all::ISO_8859_1;
+
 const LABEL_SIZE: u16 = 7; // "bytes: / chars:" labels
 
 fn highlight_non_ascii(input: &str) -> String {
@@ -68,6 +73,21 @@ pub fn parse_input(mut args: std::env::ArgsOs) -> Vec<u8> {
         result = arg_bytes.join(&0x20);
     }
     result
+}
+
+// TODO
+pub fn display_iso_8859_1_encoding(string: &Vec<u8>, screen_width: u16) {
+    if let Ok(decoded_string) = ISO_8859_1.decode(string, DecoderTrap::Replace) {
+        // TODO: refactor
+        // this needs to:
+        // - print the correct encoding name
+        // - understand how many bytes each character takes up no matter what the encoding
+        run_with_line_wrapping(&decoded_string, screen_width);
+    } else {
+        // TODO
+        panic!("Unable to decode ISO_8859_1");
+    }
+
 }
 
 pub fn run_with_line_wrapping(string: &str, width: u16) {
