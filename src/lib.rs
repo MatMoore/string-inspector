@@ -1,6 +1,7 @@
 use colored::*;
 use std::io;
 use std::io::Read;
+use std::os::unix::ffi::OsStringExt;
 
 const LABEL_SIZE: u16 = 7; // "bytes: / chars:" labels
 
@@ -51,15 +52,22 @@ fn format_character(character: char) -> String {
     }
 }
 
-pub fn parse_input(args: &[String]) -> String {
+pub fn parse_input(mut args: std::env::ArgsOs) -> Vec<u8> {
+    let mut result: Vec<u8> = Vec::new();
     if args.len() < 2 {
         eprintln!("No arguments passed to program: reading text from standard input...");
-        let mut buffer = String::new();
-        io::stdin().read_to_string(&mut buffer).expect("Unable to read from stdin");
-        buffer
+        io::stdin().read_to_end(&mut result).expect("Unable to read from stdin");
     } else {
-        args[1..].join(" ")
+        args.next();
+
+        let mut arg_bytes: Vec<Vec<u8>> = Vec::new();
+        for arg in args {
+            arg_bytes.push(arg.to_owned().into_vec());
+        }
+
+        result = arg_bytes.join(&0x20);
     }
+    result
 }
 
 pub fn run_with_line_wrapping(string: &str, width: u16) {
