@@ -5,8 +5,9 @@ use std::os::unix::ffi::OsStringExt;
 
 extern crate encoding;
 
-use encoding::{Encoding, DecoderTrap};
+use encoding::{Encoding, DecoderTrap, EncoderTrap};
 use encoding::all::ISO_8859_1;
+use encoding::all::UTF_8;
 
 const LABEL_SIZE: u16 = 7; // "bytes: / chars:" labels
 
@@ -24,35 +25,37 @@ fn highlight_non_ascii(input: &str) -> String {
     output
 }
 
+// TODO: delete??
 fn format_utf8_bytes(character: char) -> String {
-    let mut utf8_bytes = [0; 4];
-    let utf8_bytes = character.encode_utf8(&mut utf8_bytes);
+    let bytes_for_character = UTF_8.encode(&character.to_string(), EncoderTrap::Replace).unwrap();
+    format_bytes(&bytes_for_character)
+}
 
+fn format_bytes(utf8_bytes: &Vec<u8>) -> String {
     let mut buffer = String::new();
-    for byte in utf8_bytes.bytes() {
+    for byte in utf8_bytes {
         let byte_hex = format!("{:02x} ", byte);
         buffer.push_str(&byte_hex)
     }
     buffer
 }
 
-fn format_character(character: char) -> String {
-    let mut utf8_bytes = [0; 4];
-    let char_size = character.encode_utf8(&mut utf8_bytes).len();
+fn format_character(character: char, encoding: &Encoding) -> String {
+    let char_size = character_display_width(character, encoding);
 
     match character {
         '\t' | '\r' | '\n' => {
             let escaped = character.escape_default();
-            format!("{:width$} ", escaped, width = char_size * 3)
+            format!("{:width$} ", escaped, width = char_size)
         }
         '\u{20}'...'\u{7e}' => {
-            format!("{:width$}", character, width = char_size * 3)
+            format!("{:width$}", character, width = char_size)
         }
         _ => {
             // TODO: this formatting will break if the codepoint in hex is longer than
             // the byte representation in hex
             let codepoint = format!("{:02x} ", character as u32);
-            format!("{:width$}", codepoint, width = char_size * 3)
+            format!("{:width$}", codepoint, width = char_size)
         }
     }
 }
@@ -88,6 +91,10 @@ pub fn display_iso_8859_1_encoding(string: &Vec<u8>, screen_width: u16) {
 
 }
 
+fn character_display_width(character: char, encoding: &Encoding) -> usize {
+    encoding.encode(&character.to_string(), EncoderTrap::Replace).unwrap().len() * 3
+}
+
 pub fn display_decoding(string: &str, width: u16, encoding: &Encoding) {
     let mut buffer = String::new();
     let mut line_length = 0;
@@ -97,15 +104,14 @@ pub fn display_decoding(string: &str, width: u16, encoding: &Encoding) {
     println!("[{}]", encoding.name());
 
     for character in string.chars() {
-        let mut char_bytes = [0; 4];
-        let char_output_width = character.encode_utf8(&mut char_bytes).len() * 3;
+        let char_output_width = character_display_width(character, encoding);
         if line_length + char_output_width > width as usize {
             if first {
                 first = false;
             } else {
                 println!("");
             }
-            run(&buffer);
+            display_decoded_chunk(&buffer, encoding);
             buffer.clear();
             line_length = 0;
         } else {
@@ -118,22 +124,23 @@ pub fn display_decoding(string: &str, width: u16, encoding: &Encoding) {
         if !first {
             println!("");
         }
-        run(&buffer);
+        display_decoded_chunk(&buffer, encoding);
     }
 
     println!("");
     println!("{}", highlight_non_ascii(string));
 }
 
-pub fn run(string: &str) {
+pub fn display_decoded_chunk(string: &str, encoding: &Encoding) {
     let mut color_toggle = true;
 
     print!("bytes: ");
     for character in string.chars() {
+        let bytes_for_character = encoding.encode(&character.to_string(), EncoderTrap::Replace).unwrap();
         if color_toggle {
-            print!("{}", format_utf8_bytes(character).green());
+            print!("{}", format_bytes(&bytes_for_character).green());
         } else {
-            print!("{}", format_utf8_bytes(character).blue());
+            print!("{}", format_bytes(&bytes_for_character).blue());
         }
 
         color_toggle = !color_toggle;
@@ -145,9 +152,9 @@ pub fn run(string: &str) {
     print!("chars: ");
     for character in string.chars() {
         if color_toggle {
-            print!("{}", format_character(character).green());
+            print!("{}", format_character(character, encoding).green());
         } else {
-            print!("{}", format_character(character).blue());
+            print!("{}", format_character(character, encoding).blue());
         }
 
         color_toggle = !color_toggle;
@@ -162,45 +169,55 @@ mod tests {
     #[test]
     fn ascii_printables() {
         assert_eq!(format_utf8_bytes('!'), "21 ");
-        assert_eq!(format_character('!'), "!  ");
+        assert_eq!(format_character('!', UTF_8), "!  ");
 
         assert_eq!(format_utf8_bytes('a'), "61 ");
-        assert_eq!(format_character('a'), "a  ");
+        assert_eq!(format_character('a', UTF_8), "a  ");
 
         assert_eq!(format_utf8_bytes('A'), "41 ");
-        assert_eq!(format_character('A'), "A  ");
+        assert_eq!(format_character('A', UTF_8), "A  ");
 
         assert_eq!(format_utf8_bytes('1'), "31 ");
-        assert_eq!(format_character('1'), "1  ");
+        assert_eq!(format_character('1', UTF_8), "1  ");
     }
 
     #[test]
     fn ascii_escapables() {
         assert_eq!(format_utf8_bytes('\n'), "0a ");
-        assert_eq!(format_character('\n'), "\\n ");
+        assert_eq!(format_character('\n', UTF_8), "\\n ");
 
         assert_eq!(format_utf8_bytes('\r'), "0d ");
-        assert_eq!(format_character('\r'), "\\r ");
+        assert_eq!(format_character('\r', UTF_8), "\\r ");
 
         assert_eq!(format_utf8_bytes('\t'), "09 ");
-        assert_eq!(format_character('\t'), "\\t ");
+        assert_eq!(format_character('\t', UTF_8), "\\t ");
     }
 
     #[test]
     fn ascii_non_printables() {
         assert_eq!(format_utf8_bytes('\u{00}'), "00 ");
-        assert_eq!(format_character('\u{00}'), "00 ");
+        assert_eq!(format_character('\u{00}', UTF_8), "00 ");
 
         assert_eq!(format_utf8_bytes('\u{7f}'), "7f ");
-        assert_eq!(format_character('\u{7f}'), "7f ");
+        assert_eq!(format_character('\u{7f}', UTF_8), "7f ");
     }
 
     #[test]
     fn extra_latin_letters() {
         assert_eq!(format_utf8_bytes('é'), "c3 a9 ");
-        assert_eq!(format_character('é'),  "e9    ");
+        assert_eq!(format_character('é', UTF_8),  "e9    ");
 
         assert_eq!(format_utf8_bytes('ß'), "c3 9f ");
-        assert_eq!(format_character('ß'),  "df    ");
+        assert_eq!(format_character('ß', UTF_8),  "df    ");
+    }
+
+    #[test]
+    fn display_width_single_byte() {
+        assert_eq!(character_display_width('a', UTF_8), 3);
+    }
+
+    #[test]
+    fn display_width_two_bytes() {
+        assert_eq!(character_display_width('ß', UTF_8), 6);
     }
 }
