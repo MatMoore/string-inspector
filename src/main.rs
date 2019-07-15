@@ -1,5 +1,6 @@
 use std::env;
 use terminal_size::{Width, terminal_size};
+use encoding::all::UTF_8;
 
 fn main() {
     let buffer = string_inspector::parse_input(env::args_os());
@@ -7,7 +8,7 @@ fn main() {
 
     if let Some((Width(w), _)) = size {
         let input_string = String::from_utf8_lossy(&buffer);
-        string_inspector::run_with_line_wrapping(&input_string, w);
+        string_inspector::display_decoding(&input_string, w, UTF_8);
 
         println!("");
         string_inspector::display_iso_8859_1_encoding(&buffer, w);

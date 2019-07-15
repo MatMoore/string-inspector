@@ -79,10 +79,8 @@ pub fn parse_input(mut args: std::env::ArgsOs) -> Vec<u8> {
 pub fn display_iso_8859_1_encoding(string: &Vec<u8>, screen_width: u16) {
     if let Ok(decoded_string) = ISO_8859_1.decode(string, DecoderTrap::Replace) {
         // TODO: refactor
-        // this needs to:
-        // - print the correct encoding name
-        // - understand how many bytes each character takes up no matter what the encoding
-        run_with_line_wrapping(&decoded_string, screen_width);
+        // this needs to understand how many bytes each character takes up no matter what the encoding
+        display_decoding(&decoded_string, screen_width, ISO_8859_1);
     } else {
         // TODO
         panic!("Unable to decode ISO_8859_1");
@@ -90,13 +88,13 @@ pub fn display_iso_8859_1_encoding(string: &Vec<u8>, screen_width: u16) {
 
 }
 
-pub fn run_with_line_wrapping(string: &str, width: u16) {
+pub fn display_decoding(string: &str, width: u16, encoding: &Encoding) {
     let mut buffer = String::new();
     let mut line_length = 0;
     let mut first = true;
     let width = width - LABEL_SIZE;
 
-    println!("[utf-8]");
+    println!("[{}]", encoding.name());
 
     for character in string.chars() {
         let mut char_bytes = [0; 4];
