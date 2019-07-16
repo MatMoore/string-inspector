@@ -74,14 +74,11 @@ pub fn parse_input(mut args: std::env::ArgsOs) -> Vec<u8> {
 // TODO
 pub fn display_iso_8859_1_encoding(string: &Vec<u8>, screen_width: u16) {
     if let Ok(decoded_string) = ISO_8859_1.decode(string, DecoderTrap::Replace) {
-        // TODO: refactor
-        // this needs to understand how many bytes each character takes up no matter what the encoding
         display_decoding(&decoded_string, screen_width, ISO_8859_1);
     } else {
         // TODO
         panic!("Unable to decode ISO_8859_1");
     }
-
 }
 
 fn character_display_width(character: char, encoding: &Encoding) -> usize {
