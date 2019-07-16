@@ -7,7 +7,6 @@ extern crate encoding;
 
 use encoding::{Encoding, DecoderTrap, EncoderTrap};
 use encoding::all::ISO_8859_1;
-use encoding::all::UTF_8;
 
 const LABEL_SIZE: u16 = 7; // "bytes: / chars:" labels
 
@@ -23,12 +22,6 @@ fn highlight_non_ascii(input: &str) -> String {
     }
 
     output
-}
-
-// TODO: delete??
-fn format_utf8_bytes(character: char) -> String {
-    let bytes_for_character = UTF_8.encode(&character.to_string(), EncoderTrap::Replace).unwrap();
-    format_bytes(&bytes_for_character)
 }
 
 fn format_bytes(utf8_bytes: &Vec<u8>) -> String {
@@ -165,6 +158,12 @@ pub fn display_decoded_chunk(string: &str, encoding: &Encoding) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use encoding::all::UTF_8;
+
+    fn format_utf8_bytes(character: char) -> String {
+        let bytes_for_character = UTF_8.encode(&character.to_string(), EncoderTrap::Replace).unwrap();
+        format_bytes(&bytes_for_character)
+    }
 
     #[test]
     fn ascii_printables() {
