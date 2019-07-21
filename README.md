@@ -4,21 +4,24 @@
 Command line utility to inspect unicode strings
 
 ## How to install
-TODO
+`cargo install string-inspector`
 
 ## Usage
-`cargo run hello world`
+`string-inspector hello world 💩`
 
 Example output:
 ```
 [utf-8]
-bytes: 68 65 6c 6c 6f 20 77 6f 72 6c 64
-chars: h  e  l  l  o     w  o  r  l  d
+bytes: 68 65 6c 6c 6f 20 77 6f 72 6c 64 20 f0 9f 92 a9
+chars: h  e  l  l  o     w  o  r  l  d     1f4a9
 
-hello world
+hello world 💩
 ```
 
-See `cargo run -- -h` for detailed usage.
+See `string-inspector -h` for detailed usage.
+
+## Library usage
+See [documentation](https://docs.rs/string-inspector/0.0.1/string_inspector/).
 
 ## Versioning
 This project follows [Semantic Versioning](https://semver.org/).
