@@ -73,7 +73,7 @@ pub fn parse_input(mut args: std::env::ArgsOs) -> Vec<u8> {
     result
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DecodedCharacter {
     pub character: char,
     pub bytes: Vec<u8>
@@ -116,6 +116,30 @@ impl DecodedString {
 
     pub fn format_characters(&self) -> String {
         self.characters.iter().map(|c| format_character(c.character, self.encoding)).collect::<Vec<String>>().join("")
+    }
+
+    pub fn wrap_lines(&self, max_line_width: usize) -> Vec<DecodedString> {
+        let mut lines = Vec::new();
+        let mut characters_in_line = Vec::new();
+        let mut line_size = 0;
+
+        for character in self.characters.iter() {
+            let char_output_width = character.width();
+            if line_size + char_output_width > max_line_width as usize {
+                lines.push(DecodedString {characters: characters_in_line, encoding: self.encoding});
+                characters_in_line = Vec::new();
+                line_size = 0;
+            }
+
+            characters_in_line.push(character.clone());
+            line_size += character.width();
+        }
+
+        if characters_in_line.len() > 0 {
+            lines.push(DecodedString {characters: characters_in_line, encoding: self.encoding});
+        }
+
+        lines
     }
 }
 
@@ -205,11 +229,6 @@ mod tests {
     use super::*;
     use encoding::all::UTF_8;
 
-    fn format_utf8_bytes(character: char) -> String {
-        let bytes_for_character = UTF_8.encode(&character.to_string(), EncoderTrap::Replace).unwrap();
-        format_bytes(&bytes_for_character)
-    }
-
     #[test]
     fn ascii_printables() {
         let decoding = DecodedString::decode("!aA1".as_bytes(), UTF_8).unwrap();
@@ -246,5 +265,54 @@ mod tests {
     #[test]
     fn display_width_two_bytes() {
         assert_eq!(character_display_width('ß', UTF_8), 6);
+    }
+
+    #[test]
+    fn line_wrapping_if_it_fits() {
+        let text = "aaaaa";
+        let screen_width = 15;
+        let decoding = DecodedString::decode(text.as_bytes(), UTF_8).unwrap();
+        assert_eq!(decoding.format_bytes(), "61 61 61 61 61 ");
+        assert_eq!(decoding.format_characters(), "a  a  a  a  a  ");
+
+        let lines = decoding.wrap_lines(screen_width);
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0].format_bytes(), "61 61 61 61 61 ");
+        assert_eq!(lines[0].format_characters(), "a  a  a  a  a  ");
+    }
+
+    #[test]
+    fn line_wrapping_wraps_to_exact_number_of_lines() {
+        let text = "aaaaabbbbb";
+        let screen_width = 15;
+        let decoding = DecodedString::decode(text.as_bytes(), UTF_8).unwrap();
+        let lines = decoding.wrap_lines(screen_width);
+
+        assert_eq!(lines.len(), 2);
+
+        assert_eq!(lines[0].format_bytes(), "61 61 61 61 61 ");
+        assert_eq!(lines[0].format_characters(), "a  a  a  a  a  ");
+
+        assert_eq!(lines[1].format_bytes(), "62 62 62 62 62 ");
+        assert_eq!(lines[1].format_characters(), "b  b  b  b  b  ");
+    }
+
+    #[test]
+    fn line_wrapping_wraps_to_inexact_number_of_lines() {
+        let text = "aaaaabbbbbcc";
+        let screen_width = 15;
+        let decoding = DecodedString::decode(text.as_bytes(), UTF_8).unwrap();
+        let lines = decoding.wrap_lines(screen_width);
+
+        assert_eq!(lines.len(), 3);
+
+        assert_eq!(lines[0].format_bytes(), "61 61 61 61 61 ");
+        assert_eq!(lines[0].format_characters(), "a  a  a  a  a  ");
+
+        assert_eq!(lines[1].format_bytes(), "62 62 62 62 62 ");
+        assert_eq!(lines[1].format_characters(), "b  b  b  b  b  ");
+
+        assert_eq!(lines[2].format_bytes(), "63 63 ");
+        assert_eq!(lines[2].format_characters(), "c  c  ");
     }
 }
