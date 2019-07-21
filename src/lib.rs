@@ -25,36 +25,6 @@ fn highlight_non_ascii(input: &str) -> String {
     output
 }
 
-fn format_bytes(utf8_bytes: &Vec<u8>) -> String {
-    let mut buffer = String::new();
-    for byte in utf8_bytes {
-        let byte_hex = format!("{:02x} ", byte);
-        buffer.push_str(&byte_hex)
-    }
-    buffer
-}
-
-fn format_character(decoded_character: &DecodedCharacter) -> String {
-    let char_size = decoded_character.width();
-    let character = decoded_character.character;
-
-    match character {
-        '\t' | '\r' | '\n' => {
-            let escaped = character.escape_default();
-            format!("{:width$} ", escaped, width = char_size)
-        }
-        '\u{20}'...'\u{7e}' => {
-            format!("{:width$}", character, width = char_size)
-        }
-        _ => {
-            // TODO: this formatting will break if the codepoint in hex is longer than
-            // the byte representation in hex
-            let codepoint = format!("{:02x} ", character as u32);
-            format!("{:width$}", codepoint, width = char_size)
-        }
-    }
-}
-
 pub fn parse_input(mut args: std::env::ArgsOs) -> Vec<u8> {
     let mut result: Vec<u8> = Vec::new();
     if args.len() < 2 {
@@ -88,6 +58,36 @@ impl DecodedCharacter {
         let bytes_for_character = encoding.encode(&character.to_string(), EncoderTrap::Replace).unwrap();
         DecodedCharacter { character, bytes: bytes_for_character }
     }
+
+    fn format_character(&self) -> String {
+        let char_size = self.width();
+        let character = self.character;
+
+        match character {
+            '\t' | '\r' | '\n' => {
+                let escaped = character.escape_default();
+                format!("{:width$} ", escaped, width = char_size)
+            }
+            '\u{20}'...'\u{7e}' => {
+                format!("{:width$}", character, width = char_size)
+            }
+            _ => {
+                // TODO: this formatting will break if the codepoint in hex is longer than
+                // the byte representation in hex
+                let codepoint = format!("{:02x} ", character as u32);
+                format!("{:width$}", codepoint, width = char_size)
+            }
+        }
+    }
+
+    fn format_bytes(&self) -> String {
+        let mut buffer = String::new();
+        for byte in self.bytes.iter() {
+            let byte_hex = format!("{:02x} ", byte);
+            buffer.push_str(&byte_hex)
+        }
+        buffer
+    }
 }
 
 pub struct DecodedString {
@@ -110,11 +110,11 @@ impl DecodedString {
     }
 
     pub fn format_bytes(&self) -> String {
-        self.toggle_color(self.characters.iter().map(|c| format_bytes(&c.bytes)))
+        self.toggle_color(self.characters.iter().map(DecodedCharacter::format_bytes))
     }
 
     pub fn format_characters(&self) -> String {
-        self.toggle_color(self.characters.iter().map(|c| format_character(&c)))
+        self.toggle_color(self.characters.iter().map(DecodedCharacter::format_character))
     }
 
     fn toggle_color<I>(&self, iterator: I) -> String
