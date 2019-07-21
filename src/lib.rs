@@ -1,8 +1,6 @@
 use colored::*;
-use std::io;
-use std::io::Read;
-use std::os::unix::ffi::OsStringExt;
 use std::borrow::Cow;
+use encoding::types::EncodingRef;
 
 extern crate encoding;
 
@@ -23,24 +21,6 @@ fn highlight_non_ascii(input: &str) -> String {
     }
 
     output
-}
-
-pub fn parse_input(mut args: std::env::ArgsOs) -> Vec<u8> {
-    let mut result: Vec<u8> = Vec::new();
-    if args.len() < 2 {
-        eprintln!("No arguments passed to program: reading text from standard input...");
-        io::stdin().read_to_end(&mut result).expect("Unable to read from stdin");
-    } else {
-        args.next();
-
-        let mut arg_bytes: Vec<Vec<u8>> = Vec::new();
-        for arg in args {
-            arg_bytes.push(arg.to_owned().into_vec());
-        }
-
-        result = arg_bytes.join(&0x20);
-    }
-    result
 }
 
 #[derive(Debug, Clone)]
@@ -96,7 +76,7 @@ pub struct DecodedString {
 }
 
 impl DecodedString {
-    pub fn decode(string: &[u8], encoding: &'static dyn Encoding) -> Result<DecodedString, Cow<'static, str>> {
+    pub fn decode(string: &[u8], encoding: EncodingRef) -> Result<DecodedString, Cow<'static, str>> {
         match encoding.decode(string, DecoderTrap::Replace) {
             Ok(result) => {
                 let characters = result.chars().map(|c| DecodedCharacter::new(c, encoding)).collect();
