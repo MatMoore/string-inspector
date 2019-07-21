@@ -26,7 +26,7 @@ impl DecodedCharacter {
     ///
     /// # Limitations
     /// It's assumed that `encoding` is the same one used to decode the character.
-    /// We use this to reencode the character, in order to work out which code points
+    /// We use this to reencode the character, in order to work out which code units
     /// within the string actually belong to this character. This allows us to display bytes
     /// and characters/unicode code points side by side. However, if the input is a unicode replacement
     /// character, that means that there were code points in the input which could not be decoded,
