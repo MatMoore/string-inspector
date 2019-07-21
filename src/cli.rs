@@ -1,3 +1,4 @@
+//! Functions for parsing command line input and displaying output.
 use colored::*;
 use std::io;
 use std::io::Read;

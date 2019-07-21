@@ -16,13 +16,9 @@ bytes: 68 65 6c 6c 6f 20 77 6f 72 6c 64
 chars: h  e  l  l  o     w  o  r  l  d
 
 hello world
-
-[iso-8859-1]
-bytes: 68 65 6c 6c 6f 20 77 6f 72 6c 64
-chars: h  e  l  l  o     w  o  r  l  d
-
-hello world
 ```
+
+See `cargo run -- -h` for detailed usage.
 
 ## Versioning
 This project follows [Semantic Versioning](https://semver.org/).

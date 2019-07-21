@@ -1,3 +1,4 @@
+//! Things for decoding bytes into strings.
 use colored::*;
 use std::borrow::Cow;
 use encoding::types::EncodingRef;
@@ -8,6 +9,7 @@ use encoding::{Encoding, DecoderTrap, EncoderTrap};
 
 const BYTE_DISPLAY_SIZE: u16 = 3;
 
+/// A logical character that has been decoded from some code points.
 #[derive(Debug, Clone)]
 pub struct DecodedCharacter {
     pub character: char,
@@ -15,15 +17,37 @@ pub struct DecodedCharacter {
 }
 
 impl DecodedCharacter {
-    pub fn width(&self) -> usize {
+    /// The number of columns required to format this character in the output.
+    fn width(&self) -> usize {
         self.bytes.len() * BYTE_DISPLAY_SIZE as usize
     }
 
+    /// Convert a raw character into a DecodedCharacter using a particular Encoding.
+    ///
+    /// # Limitations
+    /// It's assumed that `encoding` is the same one used to decode the character.
+    /// We use this to reencode the character, in order to work out which code points
+    /// within the string actually belong to this character. This allows us to display bytes
+    /// and characters/unicode code points side by side. However, if the input is a unicode replacement
+    /// character, that means that there were code points in the input which could not be decoded,
+    /// and this method won't be able to recover those.
+    ///
+    /// # Panics
+    /// Panics if character is unrepresentable in the provided encoding,
+    /// and that encoding cannot encode a unicode replacement character (U+FFFD).
     fn new(character: char, encoding: &dyn Encoding) -> DecodedCharacter {
         let bytes_for_character = encoding.encode(&character.to_string(), EncoderTrap::Replace).unwrap();
         DecodedCharacter { character, bytes: bytes_for_character }
     }
 
+    /// Format the character in an easy to understand way.
+    /// ASCII characters are rendered normally.
+    /// Tabs, carriage returns and newlines are represented as escape sequences.
+    /// All other characters are rendered as their unicode codepoints.
+    ///
+    /// # Limitations
+    /// This is not guaranteed to work properly if the codepoint in hex is longer than the number of
+    /// bytes used to represent it in the encoding; for example, latin characters in UTF-16.
     fn format_character(&self) -> String {
         let char_size = self.width();
         let character = self.character;
@@ -37,14 +61,13 @@ impl DecodedCharacter {
                 format!("{:width$}", character, width = char_size)
             }
             _ => {
-                // TODO: this formatting will break if the codepoint in hex is longer than
-                // the byte representation in hex
                 let codepoint = format!("{:02x} ", character as u32);
                 format!("{:width$}", codepoint, width = char_size)
             }
         }
     }
 
+    /// Format the byte representation of the character using hex.
     fn format_bytes(&self) -> String {
         let mut buffer = String::new();
         for byte in self.bytes.iter() {
@@ -55,12 +78,19 @@ impl DecodedCharacter {
     }
 }
 
+/// A string that has been decoded using a particular character encoding.
 pub struct DecodedString {
     pub encoding: &'static dyn Encoding,
     pub characters: Vec<DecodedCharacter>
 }
 
 impl DecodedString {
+    /// Decode a sequence of bytes using a particular encoding.
+    ///
+    /// Any characters that cannot be encoded will be represented using unicode replacement characters (U+FFFD).
+    ///
+    /// # Errors
+    /// Returns an error if anything goes wrong with the underlying decoder. This shouldn't actually happen(?)
     pub fn decode(string: &[u8], encoding: EncodingRef) -> Result<DecodedString, Cow<'static, str>> {
         match encoding.decode(string, DecoderTrap::Replace) {
             Ok(result) => {
@@ -74,10 +104,19 @@ impl DecodedString {
         }
     }
 
+    /// Format the byte representation of the string using hex.
     pub fn format_bytes(&self) -> String {
         self.toggle_color(self.characters.iter().map(DecodedCharacter::format_bytes))
     }
 
+    /// Format the string in an easy to understand way.
+    /// ASCII characters are rendered normally.
+    /// Tabs, carriage returns and newlines are represented as escape sequences.
+    /// All other characters are rendered as their unicode codepoints.
+    ///
+    /// # Limitations
+    /// This is not guaranteed to work properly if codepoints in hex are longer than the number of
+    /// bytes used to represent it in the encoding; for example, latin characters in UTF-16.
     pub fn format_characters(&self) -> String {
         self.toggle_color(self.characters.iter().map(DecodedCharacter::format_character))
     }
@@ -99,10 +138,13 @@ impl DecodedString {
         buffer
     }
 
+    /// Convert to a regular string.
     pub fn to_string(&self) -> String {
         self.characters.iter().map(|c| c.character).collect()
     }
 
+    /// Split into chunks so that the output of [format_bytes](#method.format_bytes) and [format_characters](#method.format_characters)
+    /// fit within `max_line_width` characters for each chunk.
     pub fn wrap_lines(&self, max_line_width: usize) -> Vec<DecodedString> {
         let mut lines = Vec::new();
         let mut characters_in_line = Vec::new();
