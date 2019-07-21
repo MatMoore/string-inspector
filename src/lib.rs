@@ -7,7 +7,6 @@ use std::borrow::Cow;
 extern crate encoding;
 
 use encoding::{Encoding, DecoderTrap, EncoderTrap};
-use encoding::all::ISO_8859_1;
 
 const LABEL_SIZE: u16 = 7; // "bytes: / chars:" labels
 const BYTE_DISPLAY_SIZE: u16 = 3;
@@ -35,8 +34,9 @@ fn format_bytes(utf8_bytes: &Vec<u8>) -> String {
     buffer
 }
 
-fn format_character(character: char, encoding: &Encoding) -> String {
-    let char_size = character_display_width(character, encoding);
+fn format_character(decoded_character: &DecodedCharacter) -> String {
+    let char_size = decoded_character.width();
+    let character = decoded_character.character;
 
     match character {
         '\t' | '\r' | '\n' => {
@@ -109,13 +109,33 @@ impl DecodedString {
         }
     }
 
-    // FIXME: simplify these methods
     pub fn format_bytes(&self) -> String {
-        format_bytes(&self.characters.iter().flat_map(|c| c.bytes.clone()).collect::<Vec<u8>>())
+        self.toggle_color(self.characters.iter().map(|c| format_bytes(&c.bytes)))
     }
 
     pub fn format_characters(&self) -> String {
-        self.characters.iter().map(|c| format_character(c.character, self.encoding)).collect::<Vec<String>>().join("")
+        self.toggle_color(self.characters.iter().map(|c| format_character(&c)))
+    }
+
+    fn toggle_color<I>(&self, iterator: I) -> String
+    where I: Iterator<Item = String>
+    {
+        let mut color_toggle = true;
+        let mut buffer = String::new();
+
+        for string in iterator {
+            if color_toggle {
+                buffer.push_str(&string.green().to_string());
+            } else {
+                buffer.push_str(&string.blue().to_string());
+            }
+            color_toggle = !color_toggle;
+        }
+        buffer
+    }
+
+    pub fn to_string(&self) -> String {
+        self.characters.iter().map(|c| c.character).collect()
     }
 
     pub fn wrap_lines(&self, max_line_width: usize) -> Vec<DecodedString> {
@@ -143,85 +163,28 @@ impl DecodedString {
     }
 }
 
-// TODO
-pub fn display_iso_8859_1_encoding(string: &[u8], screen_width: u16) {
-    if let Ok(decoded_string) = ISO_8859_1.decode(string, DecoderTrap::Replace) {
-        display_decoding(&decoded_string, screen_width, ISO_8859_1);
-    } else {
-        // TODO
-        panic!("Unable to decode ISO_8859_1");
-    }
-}
+pub fn display_decoding(decoding: &DecodedString, max_line_width: usize) {
+    println!("[{}]", decoding.encoding.name());
 
-fn character_display_width(character: char, encoding: &Encoding) -> usize {
-    encoding.encode(&character.to_string(), EncoderTrap::Replace).unwrap().len() * 3
-}
-
-pub fn display_decoding(string: &str, width: u16, encoding: &Encoding) {
-    let mut buffer = String::new();
-    let mut line_length = 0;
+    let chunks = decoding.wrap_lines(max_line_width - LABEL_SIZE as usize);
     let mut first = true;
-    let width = width - LABEL_SIZE;
 
-    println!("[{}]", encoding.name());
-
-    for character in string.chars() {
-        let char_output_width = character_display_width(character, encoding);
-        if line_length + char_output_width > width as usize {
-            if first {
-                first = false;
-            } else {
-                println!("");
-            }
-            display_decoded_chunk(&buffer, encoding);
-            buffer.clear();
-            line_length = 0;
+    for chunk in chunks.iter() {
+        if first {
+            first = false;
         } else {
-            line_length += char_output_width;
-            buffer.push(character);
-        }
-    }
-
-    if buffer.len() > 0 {
-        if !first {
             println!("");
         }
-        display_decoded_chunk(&buffer, encoding);
+
+        print!("bytes: ");
+        println!("{}", chunk.format_bytes());
+
+        print!("chars: ");
+        println!("{}", chunk.format_characters());
     }
 
     println!("");
-    println!("{}", highlight_non_ascii(string));
-}
-
-pub fn display_decoded_chunk(string: &str, encoding: &Encoding) {
-    let mut color_toggle = true;
-
-    print!("bytes: ");
-    for character in string.chars() {
-        let bytes_for_character = encoding.encode(&character.to_string(), EncoderTrap::Replace).unwrap();
-        if color_toggle {
-            print!("{}", format_bytes(&bytes_for_character).green());
-        } else {
-            print!("{}", format_bytes(&bytes_for_character).blue());
-        }
-
-        color_toggle = !color_toggle;
-    }
-    println!("");
-
-    color_toggle = true;
-
-    print!("chars: ");
-    for character in string.chars() {
-        if color_toggle {
-            print!("{}", format_character(character, encoding).green());
-        } else {
-            print!("{}", format_character(character, encoding).blue());
-        }
-
-        color_toggle = !color_toggle;
-    }
-    println!("");
+    println!("{}", highlight_non_ascii(&decoding.to_string()));
 }
 
 #[cfg(test)]
@@ -231,6 +194,7 @@ mod tests {
 
     #[test]
     fn ascii_printables() {
+        colored::control::set_override(false);
         let decoding = DecodedString::decode("!aA1".as_bytes(), UTF_8).unwrap();
         assert_eq!(decoding.format_bytes(), "21 61 41 31 ");
         assert_eq!(decoding.format_characters(), "!  a  A  1  ");
@@ -238,6 +202,7 @@ mod tests {
 
     #[test]
     fn ascii_escapables() {
+        colored::control::set_override(false);
         let decoding = DecodedString::decode("\n\r\t".as_bytes(), UTF_8).unwrap();
         assert_eq!(decoding.format_bytes(), "0a 0d 09 ");
         assert_eq!(decoding.format_characters(), "\\n \\r \\t ");
@@ -245,6 +210,7 @@ mod tests {
 
     #[test]
     fn ascii_non_printables() {
+        colored::control::set_override(false);
         let decoding = DecodedString::decode("\u{00}\u{7f}".as_bytes(), UTF_8).unwrap();
         assert_eq!(decoding.format_bytes(), "00 7f ");
         assert_eq!(decoding.format_characters(), "00 7f ");
@@ -252,6 +218,7 @@ mod tests {
 
     #[test]
     fn extra_latin_letters() {
+        colored::control::set_override(false);
         let decoding = DecodedString::decode("éß".as_bytes(), UTF_8).unwrap();
         assert_eq!(decoding.format_bytes(), "c3 a9 c3 9f ");
         assert_eq!(decoding.format_characters(), "e9    df    ");
@@ -259,16 +226,19 @@ mod tests {
 
     #[test]
     fn display_width_single_byte() {
-        assert_eq!(character_display_width('a', UTF_8), 3);
+        let decoding = DecodedString::decode("a".as_bytes(), UTF_8).unwrap();
+        assert_eq!(decoding.characters[0].width(), 3);
     }
 
     #[test]
     fn display_width_two_bytes() {
-        assert_eq!(character_display_width('ß', UTF_8), 6);
+        let decoding = DecodedString::decode("ß".as_bytes(), UTF_8).unwrap();
+        assert_eq!(decoding.characters[0].width(), 6);
     }
 
     #[test]
     fn line_wrapping_if_it_fits() {
+        colored::control::set_override(false);
         let text = "aaaaa";
         let screen_width = 15;
         let decoding = DecodedString::decode(text.as_bytes(), UTF_8).unwrap();
@@ -283,6 +253,7 @@ mod tests {
 
     #[test]
     fn line_wrapping_wraps_to_exact_number_of_lines() {
+        colored::control::set_override(false);
         let text = "aaaaabbbbb";
         let screen_width = 15;
         let decoding = DecodedString::decode(text.as_bytes(), UTF_8).unwrap();
@@ -299,6 +270,7 @@ mod tests {
 
     #[test]
     fn line_wrapping_wraps_to_inexact_number_of_lines() {
+        colored::control::set_override(false);
         let text = "aaaaabbbbbcc";
         let screen_width = 15;
         let decoding = DecodedString::decode(text.as_bytes(), UTF_8).unwrap();

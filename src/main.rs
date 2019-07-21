@@ -12,18 +12,15 @@ fn main() {
         let bar = string_inspector::DecodedString::decode(&buffer, ISO_8859_1);
 
         match (foo, bar) {
-            (Ok(_utf8_decoding), Ok(_iso_8859_1_decoding)) => {
-                println!("yay");
+            (Ok(utf8_decoding), Ok(iso_8859_1_decoding)) => {
+                string_inspector::display_decoding(&utf8_decoding, w as usize);
+                println!("");
+                string_inspector::display_decoding(&iso_8859_1_decoding, w as usize);
             }
             _ => {
                 panic!("oh no");
             }
         }
-        let input_string = String::from_utf8_lossy(&buffer);
-        string_inspector::display_decoding(&input_string, w, UTF_8);
-
-        println!("");
-        string_inspector::display_iso_8859_1_encoding(&buffer, w);
     } else {
         eprintln!("Unable to get terminal size");
     }
