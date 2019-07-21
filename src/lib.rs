@@ -2,6 +2,7 @@ use colored::*;
 use std::io;
 use std::io::Read;
 use std::os::unix::ffi::OsStringExt;
+use std::borrow::Cow;
 
 extern crate encoding;
 
@@ -9,6 +10,7 @@ use encoding::{Encoding, DecoderTrap, EncoderTrap};
 use encoding::all::ISO_8859_1;
 
 const LABEL_SIZE: u16 = 7; // "bytes: / chars:" labels
+const BYTE_DISPLAY_SIZE: u16 = 3;
 
 fn highlight_non_ascii(input: &str) -> String {
     let mut output = String::new();
@@ -71,8 +73,54 @@ pub fn parse_input(mut args: std::env::ArgsOs) -> Vec<u8> {
     result
 }
 
+#[derive(Debug)]
+pub struct DecodedCharacter {
+    pub character: char,
+    pub bytes: Vec<u8>
+}
+
+impl DecodedCharacter {
+    pub fn width(&self) -> usize {
+        self.bytes.len() * BYTE_DISPLAY_SIZE as usize
+    }
+
+    fn new(character: char, encoding: &dyn Encoding) -> DecodedCharacter {
+        let bytes_for_character = encoding.encode(&character.to_string(), EncoderTrap::Replace).unwrap();
+        DecodedCharacter { character, bytes: bytes_for_character }
+    }
+}
+
+pub struct DecodedString {
+    pub encoding: &'static dyn Encoding,
+    pub characters: Vec<DecodedCharacter>
+}
+
+impl DecodedString {
+    pub fn decode(string: &[u8], encoding: &'static dyn Encoding) -> Result<DecodedString, Cow<'static, str>> {
+        match encoding.decode(string, DecoderTrap::Replace) {
+            Ok(result) => {
+                let characters = result.chars().map(|c| DecodedCharacter::new(c, encoding)).collect();
+                Ok(DecodedString {
+                    encoding: encoding,
+                    characters: characters
+                })
+            },
+            Err(msg) => Err(msg)
+        }
+    }
+
+    // FIXME: simplify these methods
+    pub fn format_bytes(&self) -> String {
+        format_bytes(&self.characters.iter().flat_map(|c| c.bytes.clone()).collect::<Vec<u8>>())
+    }
+
+    pub fn format_characters(&self) -> String {
+        self.characters.iter().map(|c| format_character(c.character, self.encoding)).collect::<Vec<String>>().join("")
+    }
+}
+
 // TODO
-pub fn display_iso_8859_1_encoding(string: &Vec<u8>, screen_width: u16) {
+pub fn display_iso_8859_1_encoding(string: &[u8], screen_width: u16) {
     if let Ok(decoded_string) = ISO_8859_1.decode(string, DecoderTrap::Replace) {
         display_decoding(&decoded_string, screen_width, ISO_8859_1);
     } else {
@@ -164,47 +212,30 @@ mod tests {
 
     #[test]
     fn ascii_printables() {
-        assert_eq!(format_utf8_bytes('!'), "21 ");
-        assert_eq!(format_character('!', UTF_8), "!  ");
-
-        assert_eq!(format_utf8_bytes('a'), "61 ");
-        assert_eq!(format_character('a', UTF_8), "a  ");
-
-        assert_eq!(format_utf8_bytes('A'), "41 ");
-        assert_eq!(format_character('A', UTF_8), "A  ");
-
-        assert_eq!(format_utf8_bytes('1'), "31 ");
-        assert_eq!(format_character('1', UTF_8), "1  ");
+        let decoding = DecodedString::decode("!aA1".as_bytes(), UTF_8).unwrap();
+        assert_eq!(decoding.format_bytes(), "21 61 41 31 ");
+        assert_eq!(decoding.format_characters(), "!  a  A  1  ");
     }
 
     #[test]
     fn ascii_escapables() {
-        assert_eq!(format_utf8_bytes('\n'), "0a ");
-        assert_eq!(format_character('\n', UTF_8), "\\n ");
-
-        assert_eq!(format_utf8_bytes('\r'), "0d ");
-        assert_eq!(format_character('\r', UTF_8), "\\r ");
-
-        assert_eq!(format_utf8_bytes('\t'), "09 ");
-        assert_eq!(format_character('\t', UTF_8), "\\t ");
+        let decoding = DecodedString::decode("\n\r\t".as_bytes(), UTF_8).unwrap();
+        assert_eq!(decoding.format_bytes(), "0a 0d 09 ");
+        assert_eq!(decoding.format_characters(), "\\n \\r \\t ");
     }
 
     #[test]
     fn ascii_non_printables() {
-        assert_eq!(format_utf8_bytes('\u{00}'), "00 ");
-        assert_eq!(format_character('\u{00}', UTF_8), "00 ");
-
-        assert_eq!(format_utf8_bytes('\u{7f}'), "7f ");
-        assert_eq!(format_character('\u{7f}', UTF_8), "7f ");
+        let decoding = DecodedString::decode("\u{00}\u{7f}".as_bytes(), UTF_8).unwrap();
+        assert_eq!(decoding.format_bytes(), "00 7f ");
+        assert_eq!(decoding.format_characters(), "00 7f ");
     }
 
     #[test]
     fn extra_latin_letters() {
-        assert_eq!(format_utf8_bytes('é'), "c3 a9 ");
-        assert_eq!(format_character('é', UTF_8),  "e9    ");
-
-        assert_eq!(format_utf8_bytes('ß'), "c3 9f ");
-        assert_eq!(format_character('ß', UTF_8),  "df    ");
+        let decoding = DecodedString::decode("éß".as_bytes(), UTF_8).unwrap();
+        assert_eq!(decoding.format_bytes(), "c3 a9 c3 9f ");
+        assert_eq!(decoding.format_characters(), "e9    df    ");
     }
 
     #[test]
