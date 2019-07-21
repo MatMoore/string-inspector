@@ -226,14 +226,14 @@ mod tests {
 
     #[test]
     fn display_width_single_byte() {
-        let decoding = DecodedString::decode("a".as_bytes(), UTF_8).unwrap();
-        assert_eq!(decoding.characters[0].width(), 3);
+        let decoded_character = DecodedCharacter {character: 'a', bytes: "a".as_bytes().to_owned()};
+        assert_eq!(decoded_character.width(), 3);
     }
 
     #[test]
     fn display_width_two_bytes() {
-        let decoding = DecodedString::decode("ß".as_bytes(), UTF_8).unwrap();
-        assert_eq!(decoding.characters[0].width(), 6);
+        let decoded_character = DecodedCharacter {character: 'ß', bytes: "ß".as_bytes().to_owned()};
+        assert_eq!(decoded_character.width(), 6);
     }
 
     #[test]
