@@ -208,6 +208,21 @@ mod tests {
     }
 
     #[test]
+    fn overlong_utf8_code_units_are_not_decoded() {
+        // The bytes C0 and C1 are not valid in UTF8.
+        // The only way you could get these as leading bytes is
+        // by padding codeboints below U+007F with leading zeros (overlong encoding)
+        // which does not happen in normal UTF8.
+        // A special case is "Modified UTF-8" which does this only for U+0000,
+        // which allows strings to be safely processed by null-terminated
+        // string functions. This would be encoded as c0 80.
+        colored::control::set_override(false);
+        let decoding = DecodedString::decode(&[0xc0], UTF_8).unwrap();
+        assert_eq!(decoding.format_bytes(), "c0  ");
+        assert_eq!(decoding.format_characters(), "ffd ");
+    }
+
+    #[test]
     fn display_width_single_byte() {
         let decoded_character = DecodedCharacter {character: 'a', bytes: "a".as_bytes().to_owned()};
         assert_eq!(decoded_character.width(), 3);
