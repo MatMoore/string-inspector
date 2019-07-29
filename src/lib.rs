@@ -17,8 +17,8 @@
 //! let string = string_inspector::DecodedString::decode(&bytes, encoding::all::ISO_8859_2).unwrap();
 //!
 //! assert_eq!(3, string.characters.len());
-//! assert_eq!('A', string.characters[0].character);
-//! assert_eq!(vec![65], string.characters[0].bytes);
+//! assert_eq!('A', string.characters[0].to_char());
+//! assert_eq!(vec![65], string.characters[0].to_bytes());
 //! ```
 //!
 pub mod cli;

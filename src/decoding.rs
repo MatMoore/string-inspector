@@ -2,11 +2,10 @@
 use colored::*;
 use std::borrow::Cow;
 use encoding::types::EncodingRef;
-use encoding::types::RawDecoder;
 
 extern crate encoding;
 
-use encoding::{Encoding, DecoderTrap, EncoderTrap};
+use encoding::{Encoding, EncoderTrap};
 
 const BYTE_DISPLAY_SIZE: u16 = 3;
 
@@ -79,10 +78,53 @@ impl DecodedCharacter {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum DecodedUnit {
+    Character(DecodedCharacter),
+    Error(u8)
+}
+
+impl DecodedUnit {
+    pub fn format_bytes(&self) -> String {
+        match &self {
+            DecodedUnit::Character(c) => {c.format_bytes()}
+            DecodedUnit::Error(b) => {format!("{:02x} ", b)}
+        }
+    }
+
+    pub fn format_character(&self) -> String {
+        match &self {
+            DecodedUnit::Character(c) => {c.format_character()}
+            DecodedUnit::Error(_) => {format!("\u{FFFD} ")}
+        }
+    }
+
+    pub fn to_char(&self) -> char {
+        match &self {
+            DecodedUnit::Character(c) => {c.character}
+            DecodedUnit::Error(_) => {'\u{FFFD}'}
+        }
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        match &self {
+            DecodedUnit::Character(c) => {c.bytes.clone()}
+            DecodedUnit::Error(b) => {vec![b.clone()]}
+        }
+    }
+
+    pub fn width(&self) -> usize {
+        match & self {
+            DecodedUnit::Character(c) => {c.width()}
+            DecodedUnit::Error(_) => {2}
+        }
+    }
+}
+
 /// A string that has been decoded using a particular character encoding.
 pub struct DecodedString {
     pub encoding: &'static dyn Encoding,
-    pub characters: Vec<DecodedCharacter>
+    pub characters: Vec<DecodedUnit>
 }
 
 impl DecodedString {
@@ -93,31 +135,35 @@ impl DecodedString {
     /// # Errors
     /// Returns an error if anything goes wrong with the underlying decoder. This shouldn't actually happen(?)
     pub fn decode(string: &[u8], encoding: EncodingRef) -> Result<DecodedString, Cow<'static, str>> {
+        let mut result = Vec::new();
         let mut decoder = encoding.raw_decoder();
         let mut remaining = string;
-        let mut result = String::new();
+        let mut string_writer = String::new();
+
         loop {
-            let (offset, error) = decoder.raw_feed(remaining, &mut result);
-            match error {
-                Some(err) => {
-                    println!("OH NO {}: offset ={}, upto={}", err.cause, offset, err.upto);
-                    let next = offset + 1;
-                    result.push('\u{FFFD}');
-                    remaining = &remaining[next..];
-                }
-                None => {
-                    break;
-                }
+            let (offset, error) = decoder.raw_feed(remaining, &mut string_writer);
+
+            // Consume the processed characters
+            let mut new_chars: Vec<DecodedUnit> = string_writer.chars().map(|c| DecodedUnit::Character(DecodedCharacter::new(c, encoding))).collect();
+            result.append(&mut new_chars);
+            string_writer.clear();
+
+            if let Some(_) = error {
+                // Handle the first unprocessed code unit and shrink the input slice
+                result.push(DecodedUnit::Error(remaining[offset]));
+                let next = offset + 1;
+                remaining = &remaining[next..];
+            } else {
+                break;
             }
         }
 
-        let characters = result.chars().map(|c| DecodedCharacter::new(c, encoding)).collect();
-        Ok(DecodedString {encoding: encoding, characters: characters})
+        Ok(DecodedString {encoding: encoding, characters: result})
     }
 
     /// Format the byte representation of the string using hex.
     pub fn format_bytes(&self) -> String {
-        self.toggle_color(self.characters.iter().map(DecodedCharacter::format_bytes))
+        self.toggle_color(self.characters.iter().map(DecodedUnit::format_bytes))
     }
 
     /// Format the string in an easy to understand way.
@@ -129,7 +175,7 @@ impl DecodedString {
     /// This is not guaranteed to work properly if codepoints in hex are longer than the number of
     /// bytes used to represent it in the encoding; for example, latin characters in UTF-16.
     pub fn format_characters(&self) -> String {
-        self.toggle_color(self.characters.iter().map(DecodedCharacter::format_character))
+        self.toggle_color(self.characters.iter().map(DecodedUnit::format_character))
     }
 
     fn toggle_color<I>(&self, iterator: I) -> String
@@ -151,7 +197,7 @@ impl DecodedString {
 
     /// Convert to a regular string.
     pub fn to_string(&self) -> String {
-        self.characters.iter().map(|c| c.character).collect()
+        self.characters.iter().map(DecodedUnit::to_char).collect()
     }
 
     /// Split into chunks so that the output of [format_bytes](#method.format_bytes) and [format_characters](#method.format_characters)
@@ -229,8 +275,8 @@ mod tests {
         // string functions. This would be encoded as c0 80.
         colored::control::set_override(false);
         let decoding = DecodedString::decode(&[0xc0], UTF_8).unwrap();
-        assert_eq!(decoding.format_bytes(), "c0  ");
-        assert_eq!(decoding.format_characters(), "ffd ");
+        assert_eq!(decoding.format_bytes(), "c0 ");
+        assert_eq!(decoding.format_characters(), "\u{FFFD} ");
     }
 
     #[test]
