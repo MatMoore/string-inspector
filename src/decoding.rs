@@ -2,6 +2,7 @@
 use colored::*;
 use std::borrow::Cow;
 use encoding::types::EncodingRef;
+use encoding::types::RawDecoder;
 
 extern crate encoding;
 
@@ -92,16 +93,26 @@ impl DecodedString {
     /// # Errors
     /// Returns an error if anything goes wrong with the underlying decoder. This shouldn't actually happen(?)
     pub fn decode(string: &[u8], encoding: EncodingRef) -> Result<DecodedString, Cow<'static, str>> {
-        match encoding.decode(string, DecoderTrap::Replace) {
-            Ok(result) => {
-                let characters = result.chars().map(|c| DecodedCharacter::new(c, encoding)).collect();
-                Ok(DecodedString {
-                    encoding: encoding,
-                    characters: characters
-                })
-            },
-            Err(msg) => Err(msg)
+        let mut decoder = encoding.raw_decoder();
+        let mut remaining = string;
+        let mut result = String::new();
+        loop {
+            let (offset, error) = decoder.raw_feed(remaining, &mut result);
+            match error {
+                Some(err) => {
+                    println!("OH NO {}: offset ={}, upto={}", err.cause, offset, err.upto);
+                    let next = offset + 1;
+                    result.push('\u{FFFD}');
+                    remaining = &remaining[next..];
+                }
+                None => {
+                    break;
+                }
+            }
         }
+
+        let characters = result.chars().map(|c| DecodedCharacter::new(c, encoding)).collect();
+        Ok(DecodedString {encoding: encoding, characters: characters})
     }
 
     /// Format the byte representation of the string using hex.
