@@ -307,6 +307,35 @@ mod tests {
     }
 
     #[test]
+    fn cannot_escape_unicode_space_in_utf8() {
+        // Leading bytes from F5 to FD are invalid because they would encode points
+        // larger than the U+10FFFF limit of Unicode
+        colored::control::set_override(false);
+        let decoding = DecodedString::decode(&[0xf5, 0x80, 0x80, 0x80], UTF_8).unwrap();
+        assert_eq!(decoding.format_bytes(), "f5 80 80 80 ");
+        assert_eq!(decoding.format_characters(), "\u{FFFD} \u{FFFD} \u{FFFD} \u{FFFD} ");
+    }
+
+    #[test]
+    fn edge_of_unicode_in_utf8() {
+        // U+10FFFF is the highest character in unicode. It is in a private use area.
+        colored::control::set_override(false);
+        let decoding = DecodedString::decode(&[0xF4, 0x8f, 0xBF, 0xBF], UTF_8).unwrap();
+        assert_eq!(decoding.format_bytes(), "f4 8f bf bf ");
+        assert_eq!(decoding.format_characters(), "10ffff      ");
+    }
+
+    #[test]
+    fn just_outside_of_unicode_in_utf8() {
+        // A leading byte of F4 may or may not be a valid UTF-8 sequence.
+        // The first invalid one corresponds to U+110000, which does not exist.
+        colored::control::set_override(false);
+        let decoding = DecodedString::decode(&[0xF4, 0x90, 0x80, 0x80], UTF_8).unwrap();
+        assert_eq!(decoding.format_bytes(), "f4 90 80 80 ");
+        assert_eq!(decoding.format_characters(), "\u{FFFD} \u{FFFD} \u{FFFD} \u{FFFD} ");
+    }
+
+    #[test]
     fn display_width_single_byte() {
         let decoded_character = DecodedCharacter {character: 'a', bytes: "a".as_bytes().to_owned()};
         assert_eq!(decoded_character.width(), 3);
