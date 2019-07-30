@@ -287,13 +287,23 @@ mod tests {
         // The only way you could get these as leading bytes is
         // by padding codeboints below U+007F with leading zeros (overlong encoding)
         // which does not happen in normal UTF8.
-        // A special case is "Modified UTF-8" which does this only for U+0000,
-        // which allows strings to be safely processed by null-terminated
-        // string functions. This would be encoded as c0 80.
         colored::control::set_override(false);
         let decoding = DecodedString::decode(&[0xc0], UTF_8).unwrap();
         assert_eq!(decoding.format_bytes(), "c0 ");
         assert_eq!(decoding.format_characters(), "\u{FFFD} ");
+    }
+
+    #[test]
+    fn modified_utf8_null_byte_is_not_decoded_in_utf8() {
+        // A special case is "Modified UTF-8" which uses overlong encoding
+        // only for U+0000, so that strings can be safely processed by
+        // null-terminated string functions. mUTF-8 encodes U+0000 as c0 80.
+        // In regular UTF-8, this is completely invalid, because 80 is only
+        // meaningful as a continuation byte.
+        colored::control::set_override(false);
+        let decoding = DecodedString::decode(&[0xc0, 0x80], UTF_8).unwrap();
+        assert_eq!(decoding.format_bytes(), "c0 80 ");
+        assert_eq!(decoding.format_characters(), "\u{FFFD} \u{FFFD} ");
     }
 
     #[test]
