@@ -1,4 +1,4 @@
-# String inspector
+# String inspector 🔍
 [![CircleCI](https://circleci.com/gh/MatMoore/string-inspector.svg?style=svg)](https://circleci.com/gh/MatMoore/string-inspector)
 
 Command line utility to inspect unicode strings
