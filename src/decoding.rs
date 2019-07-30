@@ -84,17 +84,17 @@ impl DecodedCharacter {
 // TODO: for UTF-16 a code unit is 2 bytes, not one byte, so this needs to
 // be more flexible.
 #[derive(Debug, Clone)]
-pub enum DecodedUnit {
+pub enum Atom {
     Character(DecodedCharacter),
-    Error(u8)
+    InvalidCodeUnit(u8)
 }
 
-impl DecodedUnit {
+impl Atom {
     /// Format the byte representation of the character using hex.
     pub fn format_bytes(&self) -> String {
         match &self {
-            DecodedUnit::Character(c) => {c.format_bytes()}
-            DecodedUnit::Error(b) => {format!("{:02x} ", b)}
+            Atom::Character(c) => {c.format_bytes()}
+            Atom::InvalidCodeUnit(b) => {format!("{:02x} ", b)}
         }
     }
 
@@ -108,32 +108,32 @@ impl DecodedUnit {
     /// bytes used to represent it in the encoding; for example, latin characters in UTF-16.
     pub fn format_character(&self) -> String {
         match &self {
-            DecodedUnit::Character(c) => {c.format_character()}
-            DecodedUnit::Error(_) => {format!("\u{FFFD} ")}
+            Atom::Character(c) => {c.format_character()}
+            Atom::InvalidCodeUnit(_) => {format!("\u{FFFD} ")}
         }
     }
 
-    // Convert to the regular rust char type.
+    /// Convert to the regular rust char type.
     pub fn to_char(&self) -> char {
         match &self {
-            DecodedUnit::Character(c) => {c.character}
-            DecodedUnit::Error(_) => {'\u{FFFD}'}
+            Atom::Character(c) => {c.character}
+            Atom::InvalidCodeUnit(_) => {'\u{FFFD}'}
         }
     }
 
-    // Convert to a vector of bytes.
+    /// Convert to a vector of bytes.
     pub fn to_bytes(&self) -> Vec<u8> {
         match &self {
-            DecodedUnit::Character(c) => {c.bytes.clone()}
-            DecodedUnit::Error(b) => {vec![b.clone()]}
+            Atom::Character(c) => {c.bytes.clone()}
+            Atom::InvalidCodeUnit(b) => {vec![b.clone()]}
         }
     }
 
     /// The number of columns required to format this character in the output.
     pub fn width(&self) -> usize {
         match & self {
-            DecodedUnit::Character(c) => {c.width()}
-            DecodedUnit::Error(_) => {2}
+            Atom::Character(c) => {c.width()}
+            Atom::InvalidCodeUnit(_) => {2}
         }
     }
 }
@@ -141,7 +141,7 @@ impl DecodedUnit {
 /// A string that has been decoded using a particular character encoding.
 pub struct DecodedString {
     pub encoding: &'static dyn Encoding,
-    pub characters: Vec<DecodedUnit>
+    pub atoms: Vec<Atom>
 }
 
 impl DecodedString {
@@ -161,13 +161,13 @@ impl DecodedString {
             let (offset, error) = decoder.raw_feed(remaining, &mut string_writer);
 
             // Consume the processed characters
-            let mut new_chars: Vec<DecodedUnit> = string_writer.chars().map(|c| DecodedUnit::Character(DecodedCharacter::new(c, encoding))).collect();
+            let mut new_chars: Vec<Atom> = string_writer.chars().map(|c| Atom::Character(DecodedCharacter::new(c, encoding))).collect();
             result.append(&mut new_chars);
             string_writer.clear();
 
             if let Some(_) = error {
                 // Handle the first unprocessed code unit and shrink the input slice
-                result.push(DecodedUnit::Error(remaining[offset]));
+                result.push(Atom::InvalidCodeUnit(remaining[offset]));
                 let next = offset + 1;
                 remaining = &remaining[next..];
             } else {
@@ -175,12 +175,12 @@ impl DecodedString {
             }
         }
 
-        Ok(DecodedString {encoding: encoding, characters: result})
+        Ok(DecodedString {encoding: encoding, atoms: result})
     }
 
     /// Format the byte representation of the string using hex.
     pub fn format_bytes(&self) -> String {
-        self.toggle_color(self.characters.iter().map(DecodedUnit::format_bytes))
+        self.toggle_color(self.atoms.iter().map(Atom::format_bytes))
     }
 
     /// Format the string in an easy to understand way.
@@ -192,7 +192,7 @@ impl DecodedString {
     /// This is not guaranteed to work properly if codepoints in hex are longer than the number of
     /// bytes used to represent it in the encoding; for example, latin characters in UTF-16.
     pub fn format_characters(&self) -> String {
-        self.toggle_color(self.characters.iter().map(DecodedUnit::format_character))
+        self.toggle_color(self.atoms.iter().map(Atom::format_character))
     }
 
     fn toggle_color<I>(&self, iterator: I) -> String
@@ -214,7 +214,7 @@ impl DecodedString {
 
     /// Convert to a regular string.
     pub fn to_string(&self) -> String {
-        self.characters.iter().map(DecodedUnit::to_char).collect()
+        self.atoms.iter().map(Atom::to_char).collect()
     }
 
     /// Split into chunks so that the output of [format_bytes](#method.format_bytes) and [format_characters](#method.format_characters)
@@ -224,10 +224,10 @@ impl DecodedString {
         let mut characters_in_line = Vec::new();
         let mut line_size = 0;
 
-        for character in self.characters.iter() {
+        for character in self.atoms.iter() {
             let char_output_width = character.width();
             if line_size + char_output_width > max_line_width as usize {
-                lines.push(DecodedString {characters: characters_in_line, encoding: self.encoding});
+                lines.push(DecodedString {atoms: characters_in_line, encoding: self.encoding});
                 characters_in_line = Vec::new();
                 line_size = 0;
             }
@@ -237,7 +237,7 @@ impl DecodedString {
         }
 
         if characters_in_line.len() > 0 {
-            lines.push(DecodedString {characters: characters_in_line, encoding: self.encoding});
+            lines.push(DecodedString {atoms: characters_in_line, encoding: self.encoding});
         }
 
         lines
