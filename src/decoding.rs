@@ -78,6 +78,11 @@ impl DecodedCharacter {
     }
 }
 
+// The result of decoding one or more code units
+// If there is a decoding error, we capture the first invalid code unit
+// and then continue decoding.
+// TODO: for UTF-16 a code unit is 2 bytes, not one byte, so this needs to
+// be more flexible.
 #[derive(Debug, Clone)]
 pub enum DecodedUnit {
     Character(DecodedCharacter),
@@ -85,6 +90,7 @@ pub enum DecodedUnit {
 }
 
 impl DecodedUnit {
+    /// Format the byte representation of the character using hex.
     pub fn format_bytes(&self) -> String {
         match &self {
             DecodedUnit::Character(c) => {c.format_bytes()}
@@ -92,6 +98,14 @@ impl DecodedUnit {
         }
     }
 
+    /// Format the character in an easy to understand way.
+    /// ASCII characters are rendered normally.
+    /// Tabs, carriage returns and newlines are represented as escape sequences.
+    /// All other characters are rendered as their unicode codepoints.
+    ///
+    /// # Limitations
+    /// This is not guaranteed to work properly if the codepoint in hex is longer than the number of
+    /// bytes used to represent it in the encoding; for example, latin characters in UTF-16.
     pub fn format_character(&self) -> String {
         match &self {
             DecodedUnit::Character(c) => {c.format_character()}
@@ -99,6 +113,7 @@ impl DecodedUnit {
         }
     }
 
+    // Convert to the regular rust char type.
     pub fn to_char(&self) -> char {
         match &self {
             DecodedUnit::Character(c) => {c.character}
@@ -106,6 +121,7 @@ impl DecodedUnit {
         }
     }
 
+    // Convert to a vector of bytes.
     pub fn to_bytes(&self) -> Vec<u8> {
         match &self {
             DecodedUnit::Character(c) => {c.bytes.clone()}
@@ -113,6 +129,7 @@ impl DecodedUnit {
         }
     }
 
+    /// The number of columns required to format this character in the output.
     pub fn width(&self) -> usize {
         match & self {
             DecodedUnit::Character(c) => {c.width()}
