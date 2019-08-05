@@ -175,6 +175,28 @@ impl DecodedString {
             }
         }
 
+        // Check for incomplete characters at the end of the input
+        let error = decoder.raw_finish(&mut string_writer);
+
+        if let Some(codec_err) = error {
+            eprintln!("Decoding error for {}: {}", encoding.name(), codec_err.cause);
+
+            // CodecError has an `upto` attribute which is supposed to point
+            // to the first remaining byte, relative to the *current input*
+            // When calling raw_finish() there is no current input.
+            // The docs say the return value is allowed to be negative, indicating
+            // the previous input, but the UTF-8/UTF-16 decoders always return 0:
+            // https://github.com/lifthrasiir/rust-encoding/blob/master/src/codec/utf_8.rs#L203
+            // https://github.com/lifthrasiir/rust-encoding/blob/master/src/codec/utf_16.rs#L253
+            // This means that if the input ended with a truncated character, we can't tell where
+            // it starts!
+
+            // For now, let's just assume that the last byte is bad.
+            // This will break for larger code sequences.
+            let end = remaining.len() - 1;
+            result.push(Atom::InvalidCodeUnit(remaining[end]));
+        }
+
         Ok(DecodedString {encoding: encoding, atoms: result})
     }
 
@@ -341,6 +363,40 @@ mod tests {
         let decoding = DecodedString::decode(&[0xC2, 0xA3, 0xA3, 0xA3], UTF_8).unwrap();
         assert_eq!(decoding.format_bytes(), "c2 a3 a3 a3 ");
         assert_eq!(decoding.format_characters(), "a3    \u{FFFD} \u{FFFD} ");
+    }
+
+    #[test]
+    fn truncated_character_is_invalid() {
+        colored::control::set_override(false);
+        let decoding = DecodedString::decode(&[0xC2], UTF_8).unwrap();
+        assert_eq!(decoding.format_bytes(), "c2 ");
+        assert_eq!(decoding.format_characters(), "\u{FFFD} ");
+    }
+
+    #[test]
+    fn truncated_character_followed_by_a_regular_character() {
+        colored::control::set_override(false);
+        let decoding = DecodedString::decode(&[0xC2, 0x41], UTF_8).unwrap();
+        assert_eq!(decoding.format_bytes(), "c2 41 ");
+        assert_eq!(decoding.format_characters(), "\u{FFFD} A  ");
+    }
+
+    #[test]
+    fn regular_character_followed_by_a_truncated_character() {
+        colored::control::set_override(false);
+        let decoding = DecodedString::decode(&[0x41, 0xC2], UTF_8).unwrap();
+        assert_eq!(decoding.format_bytes(), "41 c2 ");
+        assert_eq!(decoding.format_characters(), "A  \u{FFFD} ");
+    }
+
+    // This doesn't work yet.
+    #[test]
+    #[ignore]
+    fn bigger_truncated_character_is_invalid() {
+        colored::control::set_override(false);
+        let decoding = DecodedString::decode(&[0xF0, 0x9F, 0x92], UTF_8).unwrap();
+        assert_eq!(decoding.format_bytes(), "f0 9f 92");
+        assert_eq!(decoding.format_characters(), "\u{FFFD} \u{FFFD} \u{FFFD} ");
     }
 
     #[test]
