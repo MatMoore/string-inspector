@@ -336,6 +336,14 @@ mod tests {
     }
 
     #[test]
+    fn nobody_expects_the_unexpected_continuation_byte() {
+        colored::control::set_override(false);
+        let decoding = DecodedString::decode(&[0xC2, 0xA3, 0xA3, 0xA3], UTF_8).unwrap();
+        assert_eq!(decoding.format_bytes(), "c2 a3 a3 a3 ");
+        assert_eq!(decoding.format_characters(), "a3    \u{FFFD} \u{FFFD} ");
+    }
+
+    #[test]
     fn display_width_single_byte() {
         let decoded_character = DecodedCharacter {character: 'a', bytes: "a".as_bytes().to_owned()};
         assert_eq!(decoded_character.width(), 3);
