@@ -7,7 +7,7 @@ license = "MIT"
 description = "A command line utility to inspect unicode strings."
 
 [dependencies]
-colored = "1.8"
+colored = "2.0"
 terminal_size = "0.1.12"
 encoding = "0.2"
 clap = "~2.33"
